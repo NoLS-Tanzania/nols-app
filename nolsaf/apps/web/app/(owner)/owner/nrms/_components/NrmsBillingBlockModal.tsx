@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { AlertTriangle, ArrowRight, Clock3, LockKeyhole, ReceiptText, ShieldCheck, WalletCards } from "lucide-react";
 import ModalFrame from "./NrmsModalFrame";
+import { useNrmsAccessRole } from "./NrmsAccessRole";
 
 export type NrmsBillingBlock = {
   status: string;
@@ -27,6 +28,8 @@ export default function NrmsBillingBlockModal({
   reassurance: string;
   onClose: () => void;
 }) {
+  const { accessRole } = useNrmsAccessRole();
+  const canManageBilling = accessRole === "OWNER";
   const tone = block.status === "PAYMENT_REQUIRED"
     ? { chip: "bg-red-50 text-red-600 ring-red-100", icon: "bg-red-50 text-red-600", progress: "from-red-500 to-rose-400", Icon: AlertTriangle }
     : block.status === "PAYMENT_PENDING"
@@ -69,17 +72,28 @@ export default function NrmsBillingBlockModal({
 
         <div className="mt-4 flex items-start gap-2.5 rounded-xl bg-neutral-50 px-3.5 py-3 ring-1 ring-inset ring-neutral-100">
           <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600" />
-          <div><p className="m-0 text-xs font-medium text-neutral-800">Your current operation stays open</p><p className="mb-0 mt-1 text-[11px] leading-[1.1rem] text-neutral-500">{reassurance}</p></div>
+          <div>
+            <p className="m-0 text-xs font-medium text-neutral-800">{canManageBilling ? "Your current operation stays open" : "Property owner action required"}</p>
+            <p className="mb-0 mt-1 text-[11px] leading-[1.1rem] text-neutral-500">
+              {canManageBilling ? reassurance : `Only the property owner can pay or authorize this balance. ${reassurance}`}
+            </p>
+          </div>
         </div>
 
-        <div className="mt-4 grid gap-2 sm:grid-cols-[1fr_auto]">
-          <Link href={actionHref} className="group inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-emerald-700 px-4 text-xs font-semibold text-white no-underline shadow-sm transition hover:-translate-y-px hover:bg-emerald-800 hover:shadow-md">
-            <WalletCards className="h-4 w-4" />{actionLabel}<ArrowRight className="h-3.5 w-3.5 opacity-60 transition-transform group-hover:translate-x-0.5" />
-          </Link>
-          <Link href="/owner/nrms/billing#statements" className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-neutral-200 bg-white px-4 text-xs font-medium text-neutral-600 no-underline transition hover:bg-neutral-50 hover:text-neutral-900">
-            <ReceiptText className="h-4 w-4" />View statement
-          </Link>
-        </div>
+        {canManageBilling ? (
+          <div className="mt-4 grid gap-2 sm:grid-cols-[1fr_auto]">
+            <Link href={actionHref} className="group inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-emerald-700 px-4 text-xs font-semibold text-white no-underline shadow-sm transition hover:-translate-y-px hover:bg-emerald-800 hover:shadow-md">
+              <WalletCards className="h-4 w-4" />{actionLabel}<ArrowRight className="h-3.5 w-3.5 opacity-60 transition-transform group-hover:translate-x-0.5" />
+            </Link>
+            <Link href="/owner/nrms/billing#statements" className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-neutral-200 bg-white px-4 text-xs font-medium text-neutral-600 no-underline transition hover:bg-neutral-50 hover:text-neutral-900">
+              <ReceiptText className="h-4 w-4" />View statement
+            </Link>
+          </div>
+        ) : (
+          <button type="button" onClick={onClose} className="mt-4 inline-flex min-h-11 w-full items-center justify-center rounded-xl border border-neutral-200 bg-white px-4 text-xs font-semibold text-neutral-700 transition hover:bg-neutral-50 hover:text-neutral-950">
+            Close
+          </button>
+        )}
       </div>
     </ModalFrame>
   );
