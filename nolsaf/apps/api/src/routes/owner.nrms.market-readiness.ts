@@ -5,13 +5,14 @@ import { z } from "zod";
 import { typedPrisma as prisma } from "@nolsaf/prisma";
 import { type AuthedRequest, requireAuth, requireRole } from "../middleware/auth.js";
 import { requireNrms, loadOwnedActiveNrmsProperty } from "../lib/nrms.js";
+import { requireNrmsPropertyCapability } from "../lib/nrmsPropertyAccess.js";
 import { NRMS_REVIEW_CATEGORIES, NRMS_REVIEW_CATEGORY_KEYS, averageCategoryRatings, resolveReviewCategories } from "../lib/nrmsReviewCategories.js";
 import { NRMS_CHECK_IN_WELCOME_TEMPLATE_NAME } from "../lib/nrmsCheckInWelcome.js";
 import { computeOutstanding } from "../lib/nrmsFolio.js";
 import { nrmsGuestContactSchema, parseNrmsGuestContactSettings } from "../lib/nrmsGuestContact.js";
 
 export const router = Router();
-router.use(requireAuth as RequestHandler, requireRole("OWNER") as RequestHandler, requireNrms as RequestHandler);
+router.use(requireAuth as RequestHandler);
 
 const dateText = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
 const optionalId = z.number().int().positive().nullable().optional();
@@ -111,12 +112,25 @@ async function owned(req: AuthedRequest, res: Response) {
   return loadOwnedActiveNrmsProperty(res, req.user!.id, Number(req.params.propertyId));
 }
 
+router.get("/:propertyId/guest-contact", (async (req: AuthedRequest, res: Response) => {
+  const propertyId = Number(req.params.propertyId);
+  const access = await requireNrmsPropertyCapability(req, res, propertyId, "property.settings.read");
+  if (!access) return;
+  const metricFrom = new Date(); metricFrom.setUTCDate(metricFrom.getUTCDate() - 29); metricFrom.setUTCHours(0, 0, 0, 0);
+  const [property, directMetrics] = await Promise.all([
+    prisma.property.findUnique({ where: { id: propertyId }, select: { nrmsGuestContactSettings: true } }),
+    prisma.nrmsPublicMetric.findMany({ where: { propertyId, metricDate: { gte: metricFrom }, kind: { startsWith: "DIRECT:" } }, select: { kind: true, count: true } }),
+  ]);
+  res.json({ guestContact: parseNrmsGuestContactSettings(property?.nrmsGuestContactSettings), directConversion: buildDirectConversionSummary(directMetrics) });
+}) as RequestHandler);
+
 router.put("/:propertyId/guest-contact", (async (req: AuthedRequest, res: Response) => {
   const parsed = nrmsGuestContactSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: parsed.error.issues[0]?.message || "Enter valid guest contact details", details: parsed.error.flatten() });
   try {
-    const active = await owned(req, res); if (!active) return;
     const propertyId = Number(req.params.propertyId);
+    const access = await requireNrmsPropertyCapability(req, res, propertyId, "property.settings.manage");
+    if (!access) return;
     await prisma.property.update({ where: { id: propertyId }, data: { nrmsGuestContactSettings: json(parsed.data) } });
     res.json({ guestContact: parsed.data });
   } catch (error) {
@@ -124,6 +138,10 @@ router.put("/:propertyId/guest-contact", (async (req: AuthedRequest, res: Respon
     res.status(500).json({ error: "Failed to save guest contact channels" });
   }
 }) as RequestHandler);
+
+// Everything below remains owner-governed. Staff receive only the narrowly
+// capability-scoped guest-contact routes above.
+router.use(requireRole("OWNER") as RequestHandler, requireNrms as RequestHandler);
 
 /**
  * Reputation summary for the owner: overall average, per-category averages and

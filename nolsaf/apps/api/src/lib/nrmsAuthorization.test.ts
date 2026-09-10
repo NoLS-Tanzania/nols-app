@@ -42,6 +42,13 @@ describe("NRMS capability policy", () => {
     expect(hasNrmsCapability("MANAGER", "staff.manager.revoke")).toBe(false);
   });
 
+  it("allows Managers to maintain property guest-contact settings only through property scope", () => {
+    expect(hasNrmsCapability("MANAGER", "property.settings.read")).toBe(true);
+    expect(hasNrmsCapability("MANAGER", "property.settings.manage")).toBe(true);
+    expect(hasNrmsCapability("SALES_EXECUTIVE", "property.settings.manage")).toBe(false);
+    expect(hasNrmsCapability("FRONT_DESK", "property.settings.manage")).toBe(false);
+  });
+
   it("gives Sales Executive a sales workspace without front-desk or settlement authority", () => {
     expect(hasNrmsCapability("SALES_EXECUTIVE", "sales.inquiry.manage")).toBe(true);
     expect(hasNrmsCapability("SALES_EXECUTIVE", "sales.inquiry.convert")).toBe(true);

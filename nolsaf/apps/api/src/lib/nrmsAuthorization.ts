@@ -86,6 +86,7 @@ export const RETIRED_NRMS_ROLES = ["HOUSEKEEPER"] as const;
 const MANAGER_CAPABILITIES = [
   "property.overview.read",
   "property.settings.read",
+  "property.settings.manage",
   "availability.read",
   "room_status.read",
   "room_status.update",
