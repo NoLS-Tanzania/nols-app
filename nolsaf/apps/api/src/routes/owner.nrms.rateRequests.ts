@@ -16,6 +16,16 @@ const proposalSchema = z.object({
   reason: z.string().trim().min(5).max(500),
 });
 
+router.get("/:propertyId/live-count", (async (req: AuthedRequest, res: Response) => {
+  const propertyId = Number(req.params.propertyId);
+  const access = await requireNrmsPropertyCapability(req, res, propertyId, "rates.read");
+  if (!access) return;
+  const pending = await prisma.nrmsPricingRecommendation.count({
+    where: { propertyId, status: "PENDING", factors: { path: "$.source", equals: "SALES_EXECUTIVE" } },
+  });
+  res.json({ pending, total: pending });
+}) as RequestHandler);
+
 router.get("/:propertyId", (async (req: AuthedRequest, res: Response) => {
   const propertyId = Number(req.params.propertyId);
   const access = await requireNrmsPropertyCapability(req, res, propertyId, "rates.read");
@@ -47,23 +57,39 @@ router.post("/:propertyId", (async (req: AuthedRequest, res: Response) => {
   const stayDate = new Date(`${parsed.data.stayDate}T00:00:00.000Z`);
   if (stayDate < new Date(new Date().toISOString().slice(0, 10))) return res.status(400).json({ error: "Choose today or a future stay date" });
   try {
-    const request = await prisma.nrmsPricingRecommendation.create({
-      data: {
+    // Forecasting and sales proposals share one canonical recommendation slot
+    // per room/date. A machine-generated row may therefore already exist even
+    // though the sales history is empty. Upsert turns that slot into the human
+    // proposal instead of leaking the database uniqueness rule to the user.
+    const proposal = {
+      propertyId,
+      roomTypeId: room.id,
+      stayDate,
+      currency: room.currency,
+      currentRate: room.baseRate!,
+      recommendedRate: parsed.data.proposedRate,
+      reason: sanitizeText(parsed.data.reason),
+      factors: { source: "SALES_EXECUTIVE", requestedById: access.actorId, requestedByRole: access.role },
+    };
+    const request = await prisma.nrmsPricingRecommendation.upsert({
+      where: { roomTypeId_stayDate: { roomTypeId: room.id, stayDate } },
+      create: proposal,
+      update: {
         propertyId,
-        roomTypeId: room.id,
-        stayDate,
         currency: room.currency,
         currentRate: room.baseRate!,
         recommendedRate: parsed.data.proposedRate,
         reason: sanitizeText(parsed.data.reason),
         factors: { source: "SALES_EXECUTIVE", requestedById: access.actorId, requestedByRole: access.role },
+        status: "PENDING",
+        appliedAt: null,
+        dismissedAt: null,
       },
       include: { roomType: { select: { id: true, name: true } } },
     });
     await audit(req, "NRMS_RATE_CHANGE_REQUEST", "NRMS_PRICING_RECOMMENDATION", null, { propertyId, roomTypeId: room.id, stayDate: parsed.data.stayDate, proposedRate: parsed.data.proposedRate }, request.id);
     res.status(201).json({ request: { ...request, currentRate: Number(request.currentRate), proposedRate: Number(request.recommendedRate), factors: undefined } });
   } catch (error: any) {
-    if (error?.code === "P2002") return res.status(409).json({ error: "A pricing request already exists for this room and date" });
     console.error("[owner.nrms.rate-requests] create failed", error);
     res.status(500).json({ error: "The rate proposal could not be submitted" });
   }

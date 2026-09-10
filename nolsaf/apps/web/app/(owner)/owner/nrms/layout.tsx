@@ -255,6 +255,7 @@ const NAV_GROUPS: NavGroup[] = [
 function badgeLabel(href: string, count: number): string {
   if (href === "/owner/nrms/inquiries") return `${count} reception inquiries need attention`;
   if (href === "/owner/nrms/agents") return `${count} travel agent items need attention`;
+  if (href === "/owner/nrms/sales-rates") return `${count} rate proposals await owner decision`;
   if (href === "/owner/nrms/payments") return "Your payment application needs your attention";
   if (href === "/owner/nrms/tables") return `${count} open table orders`;
   return `${count} active orders`;
@@ -413,11 +414,13 @@ function NrmsShell({ children }: { children: ReactNode }) {
   const [liveOrders, setLiveOrders] = useState<{ openRoom: number; openTable: number; placedRoom: number; placedTable: number; byOutlet: Array<{ outletId: number; openRoom: number; placedRoom: number }> } | null>(null);
   const [agentWorkload, setAgentWorkload] = useState<{ partnershipRequests: number; acceptedInvites: number; bookingRequests: number; guestManifests: number; total: number } | null>(null);
   const [inquiryWorkload, setInquiryWorkload] = useState<{ new: number; open: number; overdue: number; total: number } | null>(null);
+  const [rateProposalWorkload, setRateProposalWorkload] = useState<{ pending: number; total: number } | null>(null);
   const [paymentsWorkload, setPaymentsWorkload] = useState<{ status: string | null; actionRequired: number; total: number } | null>(null);
   const audioRef = useRef<AudioContext | null>(null);
   const prevPlacedRef = useRef<number | null>(null);
   const prevAgentWorkloadRef = useRef<number | null>(null);
   const prevInquiryWorkloadRef = useRef<number | null>(null);
+  const prevRateProposalWorkloadRef = useRef<number | null>(null);
   const prevPaymentsWorkloadRef = useRef<number | null>(null);
   const daysLeft = propertyTrialDaysLeft(selectedProperty);
   const realAccessRole = selectedProperty?.nrmsAccessRole ?? "OWNER";
@@ -611,6 +614,28 @@ function NrmsShell({ children }: { children: ReactNode }) {
     return () => { active = false; clearInterval(id); };
   }, [selectedPropertyId, accessCapabilities, accessRole, chime]);
 
+  // A rate request should never wait silently in the owner's queue. The same
+  // marker remains visible outside the proposal workspace; the page itself has
+  // the full pending count, so polling again while it is open only duplicates
+  // the page request and makes one click look like a global refresh.
+  useEffect(() => {
+    const canSee = roleCanSee("/owner/nrms/sales-rates", accessRole, accessCapabilities);
+    if (!selectedPropertyId || !canSee || pathname.startsWith("/owner/nrms/sales-rates")) { setRateProposalWorkload(null); prevRateProposalWorkloadRef.current = null; return; }
+    let active = true;
+    const fetchCount = async () => {
+      try {
+        const response = await apiClient.get<{ pending: number; total: number }>(`/api/owner/nrms/rate-requests/${selectedPropertyId}/live-count`);
+        if (!active) return;
+        setRateProposalWorkload(response.data);
+        if (prevRateProposalWorkloadRef.current !== null && response.data.pending > prevRateProposalWorkloadRef.current) chime();
+        prevRateProposalWorkloadRef.current = response.data.pending;
+      } catch { /* transient; keep the last known count */ }
+    };
+    void fetchCount();
+    const id = setInterval(fetchCount, 20_000);
+    return () => { active = false; clearInterval(id); };
+  }, [selectedPropertyId, accessCapabilities, accessRole, pathname, chime]);
+
   // A returned merchant application is the owner's move and it can sit unseen
   // for days, because nothing on the workspace pointed at it. Same poll shape
   // as Restaurant & bar and Travel agents; only states the owner can clear
@@ -773,6 +798,8 @@ function NrmsShell({ children }: { children: ReactNode }) {
                   ? (!active && liveOrders?.placedRoom ? liveOrders.placedRoom : null)
                   : item.href === "/owner/nrms/agents"
                   ? (agentWorkload?.total ? agentWorkload.total : null)
+                  : item.href === "/owner/nrms/sales-rates"
+                  ? (rateProposalWorkload?.pending ? rateProposalWorkload.pending : null)
                   // A returned merchant application needs the owner, not a
                   // queue of items, so it marks the entry rather than counting.
                   : item.href === "/owner/nrms/payments"

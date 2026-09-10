@@ -27,16 +27,18 @@ export default function SalesRateRequestsPage() {
   const [decisionBusy, setDecisionBusy] = useState<number | null>(null);
   const [decisionNotes, setDecisionNotes] = useState<Record<number, string>>({});
   const [error, setError] = useState<string | null>(null);
+  const [formError, setFormError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (showLoading = true) => {
     if (!selectedPropertyId) return;
-    setLoading(true); setError(null);
+    if (showLoading) setLoading(true);
+    setError(null);
     try { const response = await apiClient.get(`/api/owner/nrms/rate-requests/${selectedPropertyId}`); setRooms(response.data.roomTypes ?? []); setRequests(response.data.requests ?? []); }
     catch (cause: any) { setError(cause?.response?.data?.error || "Rate proposals could not be loaded."); }
-    finally { setLoading(false); }
+    finally { if (showLoading) setLoading(false); }
   }, [selectedPropertyId]);
-  useEffect(() => { void load(); }, [load]);
+  useEffect(() => { void load(true); }, [load]);
 
   const selectedRoom = rooms.find((room) => room.id === Number(form.roomTypeId)) ?? null;
   const accessRole = selectedProperty?.effectiveAccess?.primaryRole ?? selectedProperty?.nrmsAccessRole ?? "OWNER";
@@ -51,11 +53,11 @@ export default function SalesRateRequestsPage() {
 
   const submit = async () => {
     if (!selectedPropertyId || !ready) return;
-    setBusy(true); setError(null); setNotice(null);
+    setBusy(true); setFormError(null); setNotice(null);
     try {
       await apiClient.post(`/api/owner/nrms/rate-requests/${selectedPropertyId}`, { roomTypeId: Number(form.roomTypeId), stayDate: form.stayDate, proposedRate, reason: form.reason });
-      setForm({ roomTypeId: "", stayDate: "", proposedRate: "", reason: "" }); setNotice("Rate proposal sent to the property owner for approval."); await load();
-    } catch (cause: any) { setError(cause?.response?.data?.error || "Rate proposal could not be submitted."); }
+      setForm({ roomTypeId: "", stayDate: "", proposedRate: "", reason: "" }); setNotice("Rate proposal sent to the property owner for approval."); await load(false);
+    } catch (cause: any) { setFormError(cause?.response?.data?.error || "Rate proposal could not be submitted."); }
     finally { setBusy(false); }
   };
 
@@ -97,6 +99,7 @@ export default function SalesRateRequestsPage() {
       {!isOwner && <section className="min-w-0 self-start overflow-hidden rounded-lg bg-white ring-1 ring-neutral-200 xl:sticky xl:top-4">
         <div className="border-b border-neutral-100 px-5 py-4 sm:px-6"><div className="flex items-center gap-2"><Sparkles className="h-4 w-4 text-emerald-700" /><h2 className="m-0 text-base font-bold text-neutral-950">Build a proposal</h2></div><p className="mb-0 mt-1 text-xs leading-5 text-neutral-500">Use a clear commercial reason so the owner can decide quickly.</p></div>
         <div className="grid gap-4 p-5 sm:p-6">
+          {formError && <div role="alert" className="rounded-md bg-red-50 px-3 py-2.5 text-xs font-medium text-red-700 ring-1 ring-red-200">{formError}</div>}
           <label className="grid min-w-0 gap-1.5 text-xs font-bold text-neutral-700">Room type<select className={fieldClass} value={form.roomTypeId} onChange={(event) => setForm({ ...form, roomTypeId: event.target.value })}><option value="">Select a room type</option>{rooms.map((room) => <option key={room.id} value={room.id}>{room.name} · {money(room.baseRate, room.currency)}</option>)}</select></label>
           <div className="grid min-w-0 gap-4">
             <div className="grid min-w-0 gap-1.5 text-xs font-bold text-neutral-700"><span>Stay date</span><DatePickerField label="Proposal stay date" value={form.stayDate} onChangeAction={(value) => setForm({ ...form, stayDate: value.slice(0, 10) })} min={new Date().toISOString().slice(0, 10)} allowPast={false} twoMonths={false} size="sm" widthClassName="!w-full min-w-0 box-border" /></div>
@@ -109,7 +112,7 @@ export default function SalesRateRequestsPage() {
       </section>}
 
       <section className="min-w-0 overflow-hidden rounded-lg bg-white ring-1 ring-neutral-200">
-        <div className="flex flex-col gap-3 border-b border-neutral-100 px-5 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-6"><div><h2 className="m-0 text-base font-bold text-neutral-950">Proposal history</h2><p className="mb-0 mt-1 text-xs text-neutral-500">Every request and decision remains visible for accountability.</p></div><div className="flex items-center gap-2 overflow-x-auto pb-1 sm:pb-0">{["ALL", "PENDING", "APPLIED", "DISMISSED"].map((item) => <button key={item} type="button" onClick={() => setFilter(item)} className={`min-h-8 shrink-0 rounded-lg border-0 px-3 text-[10px] font-bold ${filter === item ? "bg-emerald-800 text-white" : "bg-neutral-100 text-neutral-600"}`}>{item === "ALL" ? "All" : item === "APPLIED" ? "Approved" : item === "DISMISSED" ? "Declined" : "Pending"}</button>)}<button type="button" onClick={() => void load()} disabled={loading} aria-label="Refresh proposals" className="grid h-8 w-8 shrink-0 place-items-center rounded-lg border-0 bg-neutral-100 text-neutral-600"><RefreshCw className={`h-3.5 w-3.5 ${loading ? "animate-spin" : ""}`} /></button></div></div>
+        <div className="flex flex-col gap-3 border-b border-neutral-100 px-5 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-6"><div><h2 className="m-0 text-base font-bold text-neutral-950">Proposal history</h2><p className="mb-0 mt-1 text-xs text-neutral-500">Every request and decision remains visible for accountability.</p></div><div className="flex items-center gap-2 overflow-x-auto pb-1 sm:pb-0">{["ALL", "PENDING", "APPLIED", "DISMISSED"].map((item) => <button key={item} type="button" onClick={() => setFilter(item)} className={`min-h-8 shrink-0 rounded-lg border-0 px-3 text-[10px] font-bold ${filter === item ? "bg-emerald-800 text-white" : "bg-neutral-100 text-neutral-600"}`}>{item === "ALL" ? "All" : item === "APPLIED" ? "Approved" : item === "DISMISSED" ? "Declined" : "Pending"}</button>)}<button type="button" onClick={() => void load(false)} disabled={loading} aria-label="Refresh proposals" className="grid h-8 w-8 shrink-0 place-items-center rounded-lg border-0 bg-neutral-100 text-neutral-600"><RefreshCw className={`h-3.5 w-3.5 ${loading ? "animate-spin" : ""}`} /></button></div></div>
         {loading ? (
           <div className="grid min-h-80 place-items-center p-8"><div className="text-center"><Loader2 className="mx-auto h-7 w-7 animate-spin text-emerald-700" /><p className="mb-0 mt-3 text-sm text-neutral-500">Loading rate proposals…</p></div></div>
         ) : filteredRequests.length ? (

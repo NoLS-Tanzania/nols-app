@@ -7,7 +7,8 @@ const mocks = vi.hoisted(() => ({
   roomFindMany: vi.fn(),
   roomFindFirst: vi.fn(),
   requestFindMany: vi.fn(),
-  requestCreate: vi.fn(),
+  requestUpsert: vi.fn(),
+  requestCount: vi.fn(),
   userFindMany: vi.fn(),
   audit: vi.fn(),
 }));
@@ -15,7 +16,7 @@ const mocks = vi.hoisted(() => ({
 vi.mock("@nolsaf/prisma", () => ({
   typedPrisma: {
     roomType: { findMany: mocks.roomFindMany, findFirst: mocks.roomFindFirst },
-    nrmsPricingRecommendation: { findMany: mocks.requestFindMany, create: mocks.requestCreate },
+    nrmsPricingRecommendation: { findMany: mocks.requestFindMany, upsert: mocks.requestUpsert, count: mocks.requestCount },
     user: { findMany: mocks.userFindMany },
   },
 }));
@@ -41,6 +42,7 @@ describe("NRMS sales rate proposals", () => {
     mocks.requireCapability.mockResolvedValue({ actorId: 41, role: "SALES_EXECUTIVE", property: { id: 9 } });
     mocks.roomFindMany.mockResolvedValue([]);
     mocks.requestFindMany.mockResolvedValue([]);
+    mocks.requestCount.mockResolvedValue(0);
     mocks.userFindMany.mockResolvedValue([]);
     mocks.audit.mockResolvedValue(undefined);
   });
@@ -51,6 +53,16 @@ describe("NRMS sales rate proposals", () => {
     expect(response.status).toBe(200);
     expect(mocks.requireCapability).toHaveBeenCalledWith(expect.anything(), expect.anything(), 9, "rates.read");
     expect(response.body).toEqual({ roomTypes: [], requests: [] });
+  });
+
+  it("returns the pending proposal workload for the sidebar marker", async () => {
+    mocks.requestCount.mockResolvedValue(3);
+
+    const response = await request(app).get("/api/owner/nrms/rate-requests/9/live-count");
+
+    expect(response.status).toBe(200);
+    expect(response.body).toEqual({ pending: 3, total: 3 });
+    expect(mocks.requestCount).toHaveBeenCalledWith({ where: { propertyId: 9, status: "PENDING", factors: { path: "$.source", equals: "SALES_EXECUTIVE" } } });
   });
 
   it("returns the submitting salesperson and recorded owner decision", async () => {
@@ -80,7 +92,7 @@ describe("NRMS sales rate proposals", () => {
 
   it("lets sales submit a proposal without publishing the rate", async () => {
     mocks.roomFindFirst.mockResolvedValue({ id: 2, baseRate: 100_000, currency: "TZS" });
-    mocks.requestCreate.mockResolvedValue({
+    mocks.requestUpsert.mockResolvedValue({
       id: 15,
       stayDate: new Date("2099-01-02T00:00:00.000Z"),
       currentRate: 100_000,
@@ -101,8 +113,10 @@ describe("NRMS sales rate proposals", () => {
 
     expect(response.status).toBe(201);
     expect(mocks.requireCapability).toHaveBeenCalledWith(expect.anything(), expect.anything(), 9, "rates.change_request");
-    expect(mocks.requestCreate).toHaveBeenCalledWith(expect.objectContaining({
-      data: expect.objectContaining({ recommendedRate: 115_000, factors: expect.objectContaining({ source: "SALES_EXECUTIVE" }) }),
+    expect(mocks.requestUpsert).toHaveBeenCalledWith(expect.objectContaining({
+      where: { roomTypeId_stayDate: { roomTypeId: 2, stayDate: new Date("2099-01-02T00:00:00.000Z") } },
+      create: expect.objectContaining({ recommendedRate: 115_000, factors: expect.objectContaining({ source: "SALES_EXECUTIVE" }) }),
+      update: expect.objectContaining({ recommendedRate: 115_000, status: "PENDING", appliedAt: null, dismissedAt: null, factors: expect.objectContaining({ source: "SALES_EXECUTIVE" }) }),
     }));
     expect(response.body.request.proposedRate).toBe(115_000);
   });
