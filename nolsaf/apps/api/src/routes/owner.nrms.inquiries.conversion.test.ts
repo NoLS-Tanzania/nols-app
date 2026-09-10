@@ -95,6 +95,6 @@ describe("reception-safe inquiry conversion route", () => {
 
     expect(response.body.hold).toMatchObject({ ok: true, reservationId: 501, status: "HELD" });
     expect(mocks.loadAccess).toHaveBeenCalledWith(expect.anything(), expect.anything(), 7, "sales.inquiry.convert");
-    expect(mocks.createHold).toHaveBeenCalledWith(expect.objectContaining({ propertyId: 7, actorId: 19, inquiryId: 41 }));
+    expect(mocks.createHold).toHaveBeenCalledWith(expect.objectContaining({ propertyId: 7, actorId: 19, actorRole: "SALES_EXECUTIVE", inquiryId: 41 }));
   });
 });

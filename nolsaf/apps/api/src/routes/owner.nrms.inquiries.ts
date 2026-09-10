@@ -40,6 +40,7 @@ const convertToHoldSchema = z.object({
   roomTypeId: z.number().int().positive(),
   adults: z.number().int().min(1).max(50).default(1),
   children: z.number().int().min(0).max(50).default(0),
+  negotiatedNightlyRate: z.number().positive().max(1_000_000_000).nullable().optional(),
 });
 const quotationSchema = z.object({
   version: z.number().int().positive(),
@@ -306,12 +307,13 @@ router.post("/property/:propertyId/:inquiryId/hold", (async (req: AuthedRequest,
       propertyId,
       ownerId: loaded.allowed.ownerId,
       actorId: loaded.allowed.actorId,
+      actorRole: loaded.allowed.role,
       actorName: req.user!.name ?? req.user!.email ?? "Reception",
       inquiryId,
       ...parsed.data,
     });
     if (!result.ok) {
-      const status = ["INVALID_DATES", "ROOM_TYPE_NOT_FOUND", "ROOM_TYPE_MISMATCH"].includes(result.code) ? 400 : 409;
+      const status = result.code === "RATE_BELOW_STAFF_FLOOR" ? 403 : ["INVALID_DATES", "ROOM_TYPE_NOT_FOUND", "ROOM_TYPE_MISMATCH"].includes(result.code) ? 400 : 409;
       return res.status(status).json({ error: result.message, code: result.code });
     }
     await emitNrmsInboxUpdate(propertyId, { reason: "inquiry-converted", inquiryId });
