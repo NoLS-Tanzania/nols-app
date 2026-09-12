@@ -183,10 +183,23 @@ export default function DirectBookingPage({ params }: { params: Promise<{ proper
           </aside>
         </div>
 
-        <div className="relative border-t border-emerald-950/10 bg-[#f3faf7]">
-          <div className="mx-auto grid max-w-6xl grid-cols-2 px-4 sm:px-6 md:grid-cols-4">
-            {([[CheckCircle2, "Live availability"], [BadgeCheck, "Hotel-direct rates"], [ShieldCheck, "Secure 30-minute hold"], [Wallet, "Pay the property directly"]] as const).map(([Icon, text], index) => <div key={text} className={`flex min-h-12 items-center gap-2.5 py-3 text-[11px] font-semibold text-emerald-950/75 sm:px-4 ${index % 2 ? "border-l border-emerald-950/10" : ""} md:border-l md:first:border-l-0`}><Icon className="h-3.5 w-3.5 shrink-0 text-emerald-600" />{text}</div>)}
-          </div>
+        <div className="relative border-0 border-t border-solid border-[#ccded4] bg-[linear-gradient(180deg,#f8fbf9,#edf5f0)] px-3 py-3 sm:px-6 sm:py-4">
+          <ul aria-label="Direct booking benefits" className="m-0 mx-auto grid max-w-6xl list-none grid-cols-2 gap-px overflow-hidden rounded-xl border border-solid border-[#d5e3da] bg-[#d5e3da] p-0 shadow-[0_3px_10px_-5px_rgba(6,78,59,0.16)] lg:grid-cols-4">
+            {([
+              [CheckCircle2, "Live availability", "Checked against the hotel calendar"],
+              [BadgeCheck, "Hotel-direct rates", "Rates from the property"],
+              [ShieldCheck, "Secure 30-minute hold", "Time to complete your reservation"],
+              [Wallet, "Pay the property directly", "Follow the hotel’s payment instructions"],
+            ] as const).map(([Icon, title, description]) => (
+              <li key={title} className="flex min-w-0 flex-col items-start gap-2.5 bg-white/95 p-3 sm:flex-row sm:items-center sm:gap-3 sm:p-4">
+                <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-solid border-[#d2e5d9] bg-[linear-gradient(145deg,#f0faf4,#e0f0e7)] text-emerald-700 shadow-[inset_0_1px_0_rgba(255,255,255,0.9)]"><Icon className="h-[18px] w-[18px]" aria-hidden="true" /></span>
+                <div className="min-w-0">
+                  <p className="m-0 text-xs font-bold leading-5 text-[#183e32]">{title}</p>
+                  <p className="mb-0 mt-0.5 text-[10px] leading-4 text-neutral-500">{description}</p>
+                </div>
+              </li>
+            ))}
+          </ul>
         </div>
       </header>
 
@@ -242,7 +255,7 @@ export default function DirectBookingPage({ params }: { params: Promise<{ proper
         </div>
 
         <aside className="min-w-0">
-          <section className="sticky top-5 rounded-2xl border border-neutral-200 bg-white p-5 shadow-sm">
+          <div className="space-y-4">
             {quote?.contact && <section className="mb-5 overflow-hidden rounded-xl border border-emerald-900/10 bg-[#f6faf8] text-neutral-950 shadow-[0_12px_26px_-22px_rgba(6,78,59,0.45)]" aria-labelledby="reception-contact-title">
               <div className="flex items-start gap-3 border-b border-emerald-950/10 p-4">
                 <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-emerald-800 text-white shadow-sm"><MessageCircle className="h-[18px] w-[18px]" /></span>
@@ -296,8 +309,12 @@ export default function DirectBookingPage({ params }: { params: Promise<{ proper
                 </div>}
               </div>
             </section>}
-            <h2 className="m-0 text-base font-bold text-neutral-950">Guest details</h2>
-            <p className="mb-0 mt-1 text-xs text-neutral-500">Select a room, then create a secure 30-minute hold.</p>
+            <section className="rounded-2xl border border-neutral-200 bg-white p-5 shadow-sm" aria-labelledby="guest-details-title">
+            <div className="flex items-center gap-3">
+              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-neutral-100 text-neutral-600"><Users className="h-5 w-5" aria-hidden="true" /></span>
+              <div><h2 id="guest-details-title" className="m-0 text-base font-bold text-neutral-950">Guest details</h2><p className="mb-0 mt-1 text-xs leading-5 text-neutral-500">Your details for the reservation</p></div>
+            </div>
+            <p className="mb-0 mt-4 flex items-start gap-2 rounded-lg bg-emerald-50 px-3 py-2.5 text-[11px] leading-5 text-emerald-900"><ShieldCheck className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />Select a room, then secure a 30-minute hold.</p>
             <div className="mt-5 grid gap-4">
               <label className="grid gap-1.5 text-xs font-bold text-neutral-700"><span>Full name <span className="text-red-500">*</span></span><input className={inputClass} placeholder="Guest full name" value={guest.fullName} onChange={(event) => setGuest({ ...guest, fullName: event.target.value })} /></label>
               <label className="grid gap-1.5 text-xs font-bold text-neutral-700"><span>Phone <span className="text-red-500">*</span></span><input className={inputClass} placeholder="07xx xxx xxx" value={guest.phone} onChange={(event) => setGuest({ ...guest, phone: event.target.value })} /></label>
@@ -305,48 +322,46 @@ export default function DirectBookingPage({ params }: { params: Promise<{ proper
               <label className="flex items-start gap-2.5 text-xs leading-5 text-neutral-600"><input type="checkbox" checked={accepted} onChange={(event) => setAccepted(event.target.checked)} /><span>I accept the property’s rate, cancellation and direct-payment terms shown for this stay.</span></label>
             </div>
             {selected && (
-              <div className="mt-5 overflow-hidden rounded-lg border border-neutral-200 bg-white">
-                <div className="flex items-center gap-3 border-b border-neutral-200 bg-neutral-50 px-3.5 py-3">
-                  <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-emerald-100 text-emerald-800"><BedDouble className="h-4 w-4" /></span>
+              <section aria-labelledby="selected-room-title" className="mt-5 overflow-hidden rounded-xl border border-solid border-[#c9d2c9] bg-[#faf9f5] shadow-[0_8px_24px_-12px_rgba(16,48,39,0.25)]">
+                <div className="flex items-center gap-3 border-0 border-b-2 border-solid border-[#b7a77b] bg-[linear-gradient(115deg,#103c32,#1d5546)] px-4 py-5">
+                  <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-solid border-white/20 bg-white/10 text-[#e0d8bc]"><BedDouble className="h-5 w-5" aria-hidden="true" /></span>
                   <div className="min-w-0 flex-1">
-                    <p className="m-0 text-[9px] font-bold uppercase tracking-[0.14em] text-neutral-400">Your selected room</p>
-                    <p className="mb-0 mt-0.5 truncate text-sm font-bold text-neutral-950">{selected.roomType.name}</p>
+                    <p className="m-0 text-[9px] font-bold uppercase tracking-[0.14em] text-[#d1dccf]">Your selected room</p>
+                    <h3 id="selected-room-title" className="mb-0 mt-1 break-words text-base font-bold leading-5 text-white">{selected.roomType.name}</h3>
                   </div>
-                  <span className="shrink-0 border-l border-neutral-200 pl-3 text-[10px] font-semibold text-neutral-500">{quote?.nights} night{quote?.nights === 1 ? "" : "s"}</span>
+                  <span className="inline-flex shrink-0 items-center gap-1 rounded-full border border-solid border-white/20 bg-white/10 px-2.5 py-1 text-[10px] font-semibold text-white"><CalendarDays className="h-3 w-3" aria-hidden="true" />{quote?.nights} night{quote?.nights === 1 ? "" : "s"}</span>
                 </div>
 
-                <div className="p-3.5">
-                  <div className="flex items-start justify-between gap-4">
-                    <div>
-                      <p className="m-0 text-xs font-semibold text-neutral-700">Complete stay</p>
-                      <p className="mb-0 mt-0.5 text-[10px] text-neutral-400">Taxes and fees included</p>
-                    </div>
-                    <strong className="text-base text-neutral-950">{money(selected.total, selected.currency)}</strong>
+                <div className="px-4 pb-5 pt-5">
+                  <div>
+                    <p className="m-0 text-xs font-medium text-neutral-600">Total for your stay</p>
+                    <p className="mb-0 mt-1 break-words text-[28px] font-bold leading-tight tracking-tight text-neutral-950 tabular-nums">{money(selected.total, selected.currency)}</p>
+                    <p className="mb-0 mt-1.5 inline-flex items-center gap-1.5 text-[10px] leading-4 text-neutral-500"><CheckCircle2 className="h-3.5 w-3.5 shrink-0 text-emerald-600" aria-hidden="true" />Taxes and fees included</p>
                   </div>
 
-                  <div className="mt-3 border-l-[3px] border-emerald-600 bg-emerald-50 px-3 py-3">
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="flex min-w-0 items-start gap-2.5">
-                        <Wallet className="mt-0.5 h-4 w-4 shrink-0 text-emerald-700" />
-                        <div>
-                          <p className="m-0 text-xs font-bold text-emerald-950">Deposit required</p>
-                          <p className="mb-0 mt-0.5 text-[10px] leading-4 text-emerald-800/70">Paid directly to the property to confirm your booking.</p>
-                        </div>
+                  <dl className="mb-0 mt-4 overflow-hidden rounded-lg border border-solid border-[#d5dfd5] bg-white">
+                    <div className="bg-[#edf3eb] p-3.5">
+                      <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1.5">
+                        <dt className="inline-flex items-center gap-2 text-xs font-semibold text-emerald-950"><Wallet className="h-4 w-4 shrink-0 text-emerald-700" aria-hidden="true" />Deposit required</dt>
+                        <dd className="m-0 break-words text-lg font-bold tracking-tight text-emerald-800 tabular-nums">{money(selected.depositAmount, selected.currency)}</dd>
                       </div>
-                      <strong className="shrink-0 text-base text-emerald-800">{money(selected.depositAmount, selected.currency)}</strong>
+                      <p className="mb-0 mt-2 text-[11px] leading-[1.125rem] text-emerald-900/75">Pay directly to the property to confirm your booking.</p>
                     </div>
-                  </div>
-
-                  <div className="mt-3 flex items-center justify-between gap-3 border-t border-dashed border-neutral-200 pt-3 text-[11px]">
-                    <span className="text-neutral-500">Balance paid later to the property</span>
-                    <strong className="shrink-0 text-neutral-700">{money(remainingBalance, selected.currency)}</strong>
-                  </div>
+                    <div className="border-0 border-t border-solid border-[#d5dfd5] bg-white p-3.5">
+                      <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1.5">
+                        <dt className="text-xs font-medium text-neutral-600">Remaining balance</dt>
+                        <dd className="m-0 break-words text-sm font-semibold text-neutral-800 tabular-nums">{money(remainingBalance, selected.currency)}</dd>
+                      </div>
+                      <p className="mb-0 mt-1 text-[10px] leading-4 text-neutral-500">Paid later to the property</p>
+                    </div>
+                  </dl>
                 </div>
-              </div>
+              </section>
             )}
             <button type="button" disabled={!selected || !validGuest || loading} onClick={() => void createHold()} className="mt-5 inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-xl border-0 bg-emerald-800 px-4 text-sm font-bold text-white transition hover:bg-emerald-900 disabled:bg-neutral-200 disabled:text-neutral-500">{loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <ShieldCheck className="h-4 w-4" />}Hold room and continue</button>
             <p className="mb-0 mt-4 text-[10px] leading-4 text-neutral-400">A hold is not a confirmed booking. The property confirms after it records the required direct payment.</p>
-          </section>
+            </section>
+          </div>
         </aside>
       </div>
       <NrmsPoweredByFooter />
