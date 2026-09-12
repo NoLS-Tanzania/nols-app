@@ -14,6 +14,7 @@ import { sanitizeText } from "../lib/sanitize.js";
 import { nrmsOrderPlacementSettlement } from "../lib/nrmsOrders.js";
 import { StockError, reserveMenuStock } from "../lib/nrmsStock.js";
 import { readStayOrderingToken } from "../lib/nrmsStayToken.js";
+import { activeStayReservationWhere } from "../lib/nrmsActiveStay.js";
 import {
   limitPublicQrMenu,
   limitPublicQrOrderCreate,
@@ -77,11 +78,10 @@ async function findStayForPoint(point: {
     where: {
       roomUnitId: point.roomUnitId,
       status: "ACTIVE",
-      reservation: {
+      reservation: activeStayReservationWhere({
         propertyId: point.propertyId,
-        status: "CHECKED_IN",
-        ...(point.boundReservationId ? { id: point.boundReservationId } : {}),
-      },
+        ...(point.boundReservationId ? { reservationId: point.boundReservationId } : {}),
+      }),
     },
     select: {
       reservation: {
@@ -114,7 +114,7 @@ function pointCustomerLabel(point: { type: string; label: string }): string {
  */
 async function loadPointForStayToken(reservationId: number) {
   const reservation = await db.reservation.findFirst({
-    where: { id: reservationId, status: "CHECKED_IN" },
+    where: activeStayReservationWhere({ reservationId }),
     select: {
       id: true,
       propertyId: true,

@@ -29,6 +29,7 @@ import { nrmsAssignmentNeedsConfirmation } from "../lib/nrmsStaffAssignment.js";
 import { nrmsStaffInviteEmail } from "../lib/nrmsStaffEmails.js";
 import { checkNrmsQuota } from "../lib/nrmsQuotas.js";
 import { buildBreakfastList } from "../lib/nrmsBreakfastList.js";
+import { activeStayReservationWhere } from "../lib/nrmsActiveStay.js";
 import { generateNrmsBreakfastListPdf, generateNrmsRandomCode } from "../lib/pdfDocuments.js";
 import { signNrmsStaffInviteToken, verifyNrmsStaffInviteToken } from "../lib/nrmsStaffInviteToken.js";
 import {
@@ -457,7 +458,7 @@ router.get("/property/:propertyId/in-house", (async (req: AuthedRequest, res: Re
   const access = await loadAccess(req, res, Number(req.params.propertyId));
   if (!access) return;
   const reservations = await db.reservation.findMany({
-    where: { propertyId: access.property.id, status: "CHECKED_IN" },
+    where: activeStayReservationWhere({ propertyId: access.property.id }),
     select: {
       id: true,
       currency: true,
@@ -1735,7 +1736,7 @@ router.get("/property/:propertyId/housekeeping", (async (req: AuthedRequest, res
       orderBy: [{ floor: "asc" }, { code: "asc" }],
     }),
     db.reservationRoomAllocation.findMany({
-      where: { status: "ACTIVE", roomUnitId: { not: null }, reservation: { propertyId: access.property.id, status: "CHECKED_IN" } },
+      where: { status: "ACTIVE", roomUnitId: { not: null }, reservation: activeStayReservationWhere({ propertyId: access.property.id }) },
       select: { roomUnitId: true, reservation: { select: { id: true, checkIn: true, checkOut: true, guestProfile: { select: { fullName: true } } } } },
     }),
     db.reservationRoomAllocation.findMany({
@@ -1962,7 +1963,7 @@ router.get("/property/:propertyId/order-points", (async (req: AuthedRequest, res
             status: true,
             housekeepingStatus: true,
             allocations: {
-              where: { status: "ACTIVE", reservation: { status: "CHECKED_IN" } },
+              where: { status: "ACTIVE", reservation: activeStayReservationWhere() },
               select: {
                 reservation: {
                   select: {

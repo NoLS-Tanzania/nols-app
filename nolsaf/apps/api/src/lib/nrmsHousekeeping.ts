@@ -3,6 +3,8 @@
 // checkout hook. RoomUnit.housekeepingStatus is the live state; tasks are the
 // audit of who cleaned what and when.
 
+import { activeStayReservationWhere } from "./nrmsActiveStay.js";
+
 export const HOUSEKEEPING_STATUSES = ["CLEAN", "DIRTY", "IN_PROGRESS", "INSPECTED"] as const;
 export const HOUSEKEEPING_TASK_TYPES = ["TURNOVER", "DAILY_CLEAN", "DEEP_CLEAN", "MAINTENANCE"] as const;
 export const HOUSEKEEPING_TASK_PRIORITIES = ["NORMAL", "HIGH"] as const;
@@ -86,7 +88,7 @@ export async function ensureDailyOccupiedCleaning(
       where: {
         status: "ACTIVE",
         roomUnitId: { not: null },
-        reservation: { propertyId, status: "CHECKED_IN" },
+        reservation: activeStayReservationWhere({ propertyId }),
       },
       select: {
         roomUnitId: true,
