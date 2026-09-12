@@ -39,7 +39,7 @@ import {
   isValidOrderPointType,
 } from "../lib/nrmsOrderPoints.js";
 import { NRMS_STAFF_ROLES, nrmsRoleOutletType, nrmsRoleRequiresOutlet, nrmsStaffRoleLabel } from "../lib/nrmsStaffRoles.js";
-import { loadNrmsPropertyAccess, type NrmsPropertyAccess } from "../lib/nrmsPropertyAccess.js";
+import { loadNrmsPropertyAccess, requireNrmsPropertyCapability, type NrmsPropertyAccess } from "../lib/nrmsPropertyAccess.js";
 import {
   authorizeNrmsAccess,
   buildNrmsEffectiveAccessManifest,
@@ -1943,7 +1943,9 @@ const orderPointSchema = z.object({
 });
 
 router.get("/property/:propertyId/order-points", (async (req: AuthedRequest, res: Response) => {
-  const access = await loadAccess(req, res, Number(req.params.propertyId));
+  // This response includes the current checked-in guest's name. Protect the
+  // read at the API boundary as well as hiding the page in navigation.
+  const access = await requireNrmsPropertyCapability(req, res, Number(req.params.propertyId), "property.settings.read");
   if (!access) return;
   const [points, propertyRow] = await Promise.all([
     // The PREVIEW point (public listing-page menu link) is system-managed
@@ -1958,6 +1960,7 @@ router.get("/property/:propertyId/order-points", (async (req: AuthedRequest, res
             code: true,
             floor: true,
             status: true,
+            housekeepingStatus: true,
             allocations: {
               where: { status: "ACTIVE", reservation: { status: "CHECKED_IN" } },
               select: {
@@ -1990,7 +1993,13 @@ router.get("/property/:propertyId/order-points", (async (req: AuthedRequest, res
       return {
         ...p,
         roomUnit: p.roomUnit
-          ? { id: p.roomUnit.id, code: p.roomUnit.code, floor: p.roomUnit.floor, status: p.roomUnit.status }
+          ? {
+              id: p.roomUnit.id,
+              code: p.roomUnit.code,
+              floor: p.roomUnit.floor,
+              status: p.roomUnit.status,
+              housekeepingStatus: p.roomUnit.housekeepingStatus,
+            }
           : null,
         currentStay: activeStay
           ? {
