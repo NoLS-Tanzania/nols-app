@@ -48,6 +48,13 @@ type Reservation = {
   openOutletOrderCount?: number;
   amountPaid?: number | null;
   checkedInAt?: string | null;
+  earlyCheckInApproved?: boolean;
+  earlyCheckInResolution?: {
+    resolution: "APPROVE_EARLY_CHECKIN";
+    reason: string | null;
+    operationalArrival: string | null;
+    createdAt: string;
+  } | null;
   adults?: number;
   children?: number;
   balance: number | null;
@@ -244,7 +251,7 @@ function NrmsFrontDeskPage() {
   // guest occupying a room tonight. Keep it visible to Attention below, but do
   // not let it inflate the in-house or occupancy figures.
   const inHouse = useMemo(
-    () => checkedInRecords.filter((r) => r.checkIn.slice(0, 10) <= localDateKey(today)),
+    () => checkedInRecords.filter((r) => r.checkIn.slice(0, 10) <= localDateKey(today) || r.earlyCheckInApproved),
     [checkedInRecords, today],
   );
   const departures = useMemo(
@@ -268,7 +275,7 @@ function NrmsFrontDeskPage() {
       const guest = reservation.guestProfile?.fullName ?? "Guest";
       const issues: AttentionItem["issues"] = [];
       if (!hasAssignedRoom(reservation)) issues.push({ code: "ROOM", label: "Room assignment required" });
-      if (reservation.status === "CHECKED_IN" && reservation.checkIn.slice(0, 10) > localDateKey(today)) {
+      if (reservation.status === "CHECKED_IN" && reservation.checkIn.slice(0, 10) > localDateKey(today) && !reservation.earlyCheckInApproved) {
         issues.push({ code: "EARLY_CHECKIN", label: `Checked in before ${shortDate(reservation.checkIn)} arrival` });
       }
       if (new Date(reservation.checkOut).getTime() < startOfToday && reservation.status === "CHECKED_IN") {

@@ -82,7 +82,16 @@ type Reservation = {
   status: string;
   checkIn: string;
   checkOut: string;
+  checkedInAt?: string | null;
   checkedOutAt?: string | null;
+  earlyCheckInApproved?: boolean;
+  earlyCheckInResolution?: {
+    resolution: "APPROVE_EARLY_CHECKIN";
+    reason: string | null;
+    operationalArrival: string | null;
+    createdAt: string;
+    actorId: number | null;
+  } | null;
   adults: number;
   children: number;
   currency: string;
@@ -1437,6 +1446,9 @@ function ReservationDetailModal({
   const [checkoutConfirmOpen, setCheckoutConfirmOpen] = useState(false);
   const [roomVacantConfirmed, setRoomVacantConfirmed] = useState(false);
   const [earlyDepartureReason, setEarlyDepartureReason] = useState("");
+  const [arrivalResolution, setArrivalResolution] = useState<"CORRECT_ARRIVAL_DATE" | "APPROVE_EARLY_CHECKIN">("CORRECT_ARRIVAL_DATE");
+  const [arrivalResolutionReason, setArrivalResolutionReason] = useState("");
+  const [arrivalResolutionNotice, setArrivalResolutionNotice] = useState<string | null>(null);
 
   const reload = useCallback(async () => {
     const r = await apiClient.get<any>(`/api/owner/nrms/reservations/${reservationId}`);
@@ -1579,6 +1591,27 @@ function ReservationDetailModal({
     }
   };
 
+  const resolveEarlyCheckIn = async () => {
+    if (!arrivalResolutionReason.trim()) return;
+    setBusyAction("arrival-resolution");
+    setError(null);
+    setArrivalResolutionNotice(null);
+    try {
+      const response = await apiClient.post<any>(`/api/owner/nrms/reservations/${reservationId}/early-check-in-resolution`, {
+        resolution: isMarketplace ? "APPROVE_EARLY_CHECKIN" : arrivalResolution,
+        reason: arrivalResolutionReason.trim(),
+      });
+      setArrivalResolutionReason("");
+      setArrivalResolutionNotice(response.data?.message || "Early check-in resolved.");
+      await reload();
+      await onChanged();
+    } catch (e: any) {
+      setError(e?.response?.data?.error || "Failed to resolve the early check-in");
+    } finally {
+      setBusyAction(null);
+    }
+  };
+
   const r = reservation;
   const checkoutGuestName = r?.guestProfile?.fullName ?? r?.agentBooking?.leadGuest?.fullName ?? "Guest";
   const checkoutRoomLabel = tallyRoomLabels((r?.allocations ?? []).filter((allocation) => allocation.status === "ACTIVE").map((allocation) => allocation.roomUnitCode ?? `Any ${allocation.roomTypeName ?? "room"}`), "assigned room");
@@ -1611,6 +1644,13 @@ function ReservationDetailModal({
   const plannedCheckOutKey = r?.checkOut?.slice(0, 10) ?? "";
   const departureDateKey = localDateKey();
   const earlyDeparture = Boolean(r?.status === "CHECKED_IN" && plannedCheckOutKey > departureDateKey);
+  const actualCheckInDateKey = r?.checkedInAt ? localDateKey(new Date(r.checkedInAt)) : "";
+  const unresolvedEarlyCheckIn = Boolean(
+    r?.status === "CHECKED_IN"
+      && actualCheckInDateKey
+      && r.checkIn.slice(0, 10) > actualCheckInDateKey
+      && !r.earlyCheckInApproved,
+  );
   const checkoutDeclarationReady = roomVacantConfirmed && (!earlyDeparture || earlyDepartureReason.trim().length >= 2);
   const canPostCharges = r != null && !isMarketplace && ["CONFIRMED", "CHECKED_IN"].includes(r.status);
   const canPrintInvoice = r != null && !isMarketplace && ["CONFIRMED", "CHECKED_IN", "CHECKED_OUT"].includes(r.status);
@@ -2019,6 +2059,56 @@ function ReservationDetailModal({
               Why is the guest leaving early?
               <textarea value={earlyDepartureReason} onChange={(event) => setEarlyDepartureReason(event.target.value)} rows={2} maxLength={300} placeholder="Example: Guest changed travel plans" className="mt-1.5 box-border w-full resize-none rounded-lg border border-neutral-200 bg-white px-3 py-2 text-xs font-normal normal-case tracking-normal text-neutral-900 outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/10" />
             </label>
+          )}
+
+          {unresolvedEarlyCheckIn && (
+            <section className="rounded-xl border border-red-200 bg-red-50 p-4" aria-label="Resolve early check-in">
+              <div className="flex items-start gap-3">
+                <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-red-600" />
+                <div className="min-w-0 flex-1">
+                  <p className="m-0 text-sm font-bold text-red-950">Checked in before the recorded arrival date</p>
+                  <p className="mb-0 mt-1 text-[11px] leading-5 text-red-800">
+                    Actual check-in was {fmtDate(r.checkedInAt!)} but the reservation arrival is {fmtDate(r.checkIn)}. Choose the accurate resolution; the original values and your reason remain in the audit history.
+                  </p>
+                  <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                    {!isMarketplace && (
+                      <label className={`cursor-pointer rounded-lg border p-3 ${arrivalResolution === "CORRECT_ARRIVAL_DATE" ? "border-emerald-500 bg-white ring-2 ring-emerald-500/10" : "border-red-200 bg-white/70"}`}>
+                        <input type="radio" name="arrival-resolution" className="sr-only" checked={arrivalResolution === "CORRECT_ARRIVAL_DATE"} onChange={() => setArrivalResolution("CORRECT_ARRIVAL_DATE")} />
+                        <span className="block text-xs font-bold text-neutral-900">Correct arrival date</span>
+                        <span className="mt-1 block text-[10px] leading-4 text-neutral-500">Use the immutable actual check-in date as the stay arrival date.</span>
+                      </label>
+                    )}
+                    <label className={`cursor-pointer rounded-lg border p-3 ${arrivalResolution === "APPROVE_EARLY_CHECKIN" || isMarketplace ? "border-emerald-500 bg-white ring-2 ring-emerald-500/10" : "border-red-200 bg-white/70"}`}>
+                      <input type="radio" name="arrival-resolution" className="sr-only" checked={arrivalResolution === "APPROVE_EARLY_CHECKIN" || isMarketplace} onChange={() => setArrivalResolution("APPROVE_EARLY_CHECKIN")} />
+                      <span className="block text-xs font-bold text-neutral-900">Approve genuine early check-in</span>
+                      <span className="mt-1 block text-[10px] leading-4 text-neutral-500">Keep the scheduled date, but extend operational room occupancy to the actual arrival.</span>
+                    </label>
+                  </div>
+                  <label className="mt-3 block text-[10px] font-bold uppercase tracking-wide text-red-800">
+                    Required reason
+                    <textarea value={arrivalResolutionReason} onChange={(event) => setArrivalResolutionReason(event.target.value)} maxLength={300} rows={2} placeholder="Explain what was verified" className="mt-1.5 box-border w-full resize-y rounded-lg border border-red-200 bg-white px-3 py-2 text-xs font-medium normal-case tracking-normal text-neutral-900 outline-none placeholder:font-normal placeholder:text-neutral-400 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/10" />
+                  </label>
+                  <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
+                    <p className="m-0 text-[10px] leading-4 text-red-700">Pricing is protected from Front Desk changes. The folio will be flagged for financial review.</p>
+                    <button type="button" onClick={resolveEarlyCheckIn} disabled={busyAction != null || arrivalResolutionReason.trim().length < 2} className="inline-flex min-h-9 items-center justify-center gap-2 rounded-lg border-0 bg-red-700 px-4 text-xs font-bold text-white hover:bg-red-800 disabled:bg-neutral-200 disabled:text-neutral-400">
+                      {busyAction === "arrival-resolution" ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <ShieldCheck className="h-3.5 w-3.5" />}
+                      Resolve check-in
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </section>
+          )}
+
+          {r.earlyCheckInApproved && r.earlyCheckInResolution && (
+            <div className="flex items-start gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-xs leading-5 text-emerald-900">
+              <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0" />
+              <span>Early check-in approved on {fmtDate(r.earlyCheckInResolution.createdAt)}. Scheduled arrival was preserved. Reason: {r.earlyCheckInResolution.reason || "Recorded in audit history"}</span>
+            </div>
+          )}
+
+          {arrivalResolutionNotice && (
+            <div role="status" className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-xs font-medium text-emerald-900">{arrivalResolutionNotice}</div>
           )}
           <button
             type="button"

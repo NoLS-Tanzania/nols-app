@@ -279,6 +279,18 @@ describe("Sales Executive access to the owner NRMS routers", () => {
       // well as path precisely so this stays closed.
       expectRefused((await request(app).post(`/api/owner/nrms/reservations/property/${PROPERTY_ID}`).send({})).status);
     });
+
+    it("keeps arrival anomaly resolution with Front Desk and management", async () => {
+      mocks.anyFindUnique.mockResolvedValue({ propertyId: PROPERTY_ID });
+      const body = { resolution: "APPROVE_EARLY_CHECKIN", reason: "Guest arrival verified at reception" };
+
+      expectRefused((await request(app).post("/api/owner/nrms/reservations/17/early-check-in-resolution").send(body)).status);
+
+      for (const role of ["FRONT_DESK", "MANAGER"]) {
+        mocks.role.value = role;
+        expectAllowed((await request(app).post("/api/owner/nrms/reservations/17/early-check-in-resolution").send(body)).status);
+      }
+    });
   });
 
   describe("group blocks: listing is sales work, the master folio is not", () => {

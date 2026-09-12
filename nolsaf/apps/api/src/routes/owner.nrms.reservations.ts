@@ -67,7 +67,8 @@ router.use(((req, res, next) => {
   // path creates a reservation and stays owner-only.
   const readsReservationBook = req.method === "GET" && /^\/property\/\d+$/.test(req.path);
   const readsReservationDetail = req.method === "GET" && /^\/\d+$/.test(req.path);
-  if (groupScoped || readsReservationBook || readsReservationDetail) return next();
+  const resolvesEarlyCheckIn = req.method === "POST" && /^\/\d+\/early-check-in-resolution$/.test(req.path);
+  if (groupScoped || readsReservationBook || readsReservationDetail || resolvesEarlyCheckIn) return next();
   return requireOwnerRole(req, res, (roleError?: unknown) => {
     if (roleError) return next(roleError);
     return requireNrms(req, res, next);
@@ -151,6 +152,10 @@ const editReservationSchema = z.object({
 });
 
 const reasonSchema = z.object({ reason: z.string().trim().min(2).max(300) });
+const earlyCheckInResolutionSchema = z.object({
+  resolution: z.enum(["CORRECT_ARRIVAL_DATE", "APPROVE_EARLY_CHECKIN"]),
+  reason: z.string().trim().min(2).max(300),
+});
 const checkoutVerificationSchema = z.object({
   verifiedChargeIds: z.array(z.number().int().positive()).max(500).default([]),
   roomVacantConfirmed: z.boolean().default(false),
@@ -239,6 +244,9 @@ function formatReservation(r: any) {
     : Array.isArray(operationalAgentRequest?.guests) ? operationalAgentRequest.guests : [];
   const agentLead = agentGuests.find((guest: any) => guest.isLead && guest.fullName) ?? agentGuests.find((guest: any) => guest.fullName) ?? null;
   const agentAccount = operationalAgentRequest?.link?.agentAccount ?? null;
+  const approvedEarlyCheckIn = Array.isArray(r.events)
+    ? [...r.events].reverse().find((event: any) => event.type === "EARLY_CHECKIN_APPROVED")
+    : null;
   return {
     id: r.id,
     propertyId: r.propertyId,
@@ -279,6 +287,16 @@ function formatReservation(r: any) {
     effectivePaid,
     confirmedAt: r.confirmedAt,
     checkedInAt: r.checkedInAt,
+    earlyCheckInApproved: Boolean(approvedEarlyCheckIn),
+    earlyCheckInResolution: approvedEarlyCheckIn
+      ? {
+          resolution: "APPROVE_EARLY_CHECKIN",
+          reason: approvedEarlyCheckIn.data?.reason ?? null,
+          operationalArrival: approvedEarlyCheckIn.data?.operationalArrival ?? null,
+          createdAt: approvedEarlyCheckIn.createdAt,
+          actorId: approvedEarlyCheckIn.actorId,
+        }
+      : null,
     checkedOutAt: r.checkedOutAt,
     cancelledAt: r.cancelledAt,
     cancelReason: r.cancelReason,
@@ -2136,6 +2154,146 @@ router.patch("/:id", (async (req: AuthedRequest, res: Response) => {
   } catch (err) {
     console.error("[owner.nrms.reservations] edit failed", err);
     res.status(500).json({ error: "Failed to update reservation" });
+  }
+}) as RequestHandler);
+
+/**
+ * POST /:id/early-check-in-resolution
+ * Resolves legacy checked-in stays whose scheduled arrival is still in the
+ * future. Reception may either correct a mistaken arrival date or explicitly
+ * approve a genuine early arrival. The actual checkedInAt timestamp is never
+ * rewritten, and every decision is retained in the immutable event timeline.
+ */
+router.post("/:id/early-check-in-resolution", (async (req: AuthedRequest, res: Response) => {
+  try {
+    const id = Number(req.params.id);
+    if (!Number.isInteger(id) || id <= 0) return res.status(400).json({ error: "Invalid reservation id" });
+    const parsed = earlyCheckInResolutionSchema.safeParse(req.body);
+    if (!parsed.success) return res.status(400).json({ error: "Choose a resolution and record a reason", details: parsed.error.flatten() });
+
+    const scope = await prisma.reservation.findUnique({ where: { id }, select: { propertyId: true } });
+    if (!scope) return res.status(404).json({ error: "Reservation not found" });
+    const access = await loadNrmsPropertyAccess(req, res, scope.propertyId, ["OWNER", "MANAGER", "FRONT_DESK"]);
+    if (!access) return;
+
+    const reservation = await prisma.reservation.findUnique({ where: { id }, include: detailInclude });
+    if (!reservation) return res.status(404).json({ error: "Reservation not found" });
+    if (reservation.status !== "CHECKED_IN" || !reservation.checkedInAt) {
+      return res.status(409).json({ error: "Only a checked-in stay with an actual check-in time can be resolved", code: "EARLY_CHECKIN_NOT_APPLICABLE" });
+    }
+    if (reservation.events.some((event: any) => event.type === "EARLY_CHECKIN_APPROVED")) {
+      return res.status(409).json({ error: "This early check-in has already been approved", code: "EARLY_CHECKIN_ALREADY_RESOLVED" });
+    }
+    const actualArrival = new Date(reservation.checkedInAt);
+    if (reservationDateKey(reservation.checkIn.toISOString()) <= dateKeyInNrmsTimeZone(actualArrival)) {
+      return res.status(409).json({ error: "The arrival date is already consistent with the actual check-in", code: "EARLY_CHECKIN_ALREADY_RESOLVED" });
+    }
+    if (reservation.bookingId != null && parsed.data.resolution === "CORRECT_ARRIVAL_DATE") {
+      return res.status(409).json({
+        error: "A NoLSAF marketplace booking date cannot be rewritten from Front Desk. Approve the operational early check-in or use the marketplace correction process.",
+        code: "MARKETPLACE_DATE_CORRECTION_FORBIDDEN",
+      });
+    }
+
+    const operationalCheckIn = new Date(`${dateKeyInNrmsTimeZone(actualArrival)}T00:00:00.000Z`);
+    if (reservation.checkOut.getTime() <= operationalCheckIn.getTime()) {
+      return res.status(409).json({ error: "The actual arrival is not before the scheduled check-out date", code: "INVALID_STAY_DATES" });
+    }
+    const reason = sanitizeText(parsed.data.reason);
+    if (reason.trim().length < 2) return res.status(400).json({ error: "Record a meaningful reason for this correction" });
+    const oldCheckIn = reservation.checkIn;
+    const eventType = parsed.data.resolution === "CORRECT_ARRIVAL_DATE" ? "ARRIVAL_DATE_CORRECTED" : "EARLY_CHECKIN_APPROVED";
+
+    const result = await prisma.$transaction(async (tx: any) => {
+      await lockPropertyInventory(tx, reservation.propertyId);
+      await assertNrmsBusinessDayWritable(tx, reservation.propertyId);
+      const current = await tx.reservation.findUnique({
+        where: { id: reservation.id },
+        select: { status: true, checkIn: true, checkOut: true, checkedInAt: true },
+      });
+      if (!current
+        || current.status !== "CHECKED_IN"
+        || !current.checkedInAt
+        || current.checkIn.getTime() !== reservation.checkIn.getTime()
+        || current.checkOut.getTime() !== reservation.checkOut.getTime()
+        || current.checkedInAt.getTime() !== reservation.checkedInAt.getTime()) {
+        throw new Error("NRMS_EARLY_CHECKIN_STALE");
+      }
+      const existingApproval = await tx.reservationEvent.findFirst({
+        where: { reservationId: reservation.id, type: "EARLY_CHECKIN_APPROVED" },
+        select: { id: true },
+      });
+      if (existingApproval) throw new Error("NRMS_EARLY_CHECKIN_ALREADY_RESOLVED");
+      const activeAllocations = await tx.reservationRoomAllocation.findMany({
+        where: { reservationId: reservation.id, status: "ACTIVE" },
+        select: { id: true, roomTypeId: true, roomUnitId: true },
+      });
+      const requestedByType = new Map<number, number>();
+      for (const allocation of activeAllocations) requestedByType.set(allocation.roomTypeId, (requestedByType.get(allocation.roomTypeId) ?? 0) + 1);
+      for (const [roomTypeId, requested] of requestedByType) {
+        const capacity = await getRoomTypeAvailability(tx, reservation.propertyId, roomTypeId, operationalCheckIn, reservation.checkOut, {
+          excludeReservationId: reservation.id,
+        });
+        if (capacity.available < requested) return { capacityConflict: { roomTypeId, requested, ...capacity } };
+      }
+      for (const allocation of activeAllocations.filter((item: any) => item.roomUnitId != null)) {
+        const conflicts = await findUnitConflicts(allocation.roomUnitId, operationalCheckIn, reservation.checkOut, {
+          excludeReservationId: reservation.id,
+          db: tx,
+        });
+        if (conflicts.length) return { conflict: { roomUnitId: allocation.roomUnitId, conflicts } };
+      }
+
+      await tx.reservationRoomAllocation.updateMany({
+        where: { reservationId: reservation.id, status: "ACTIVE" },
+        data: { startDate: operationalCheckIn },
+      });
+      if (parsed.data.resolution === "CORRECT_ARRIVAL_DATE") {
+        await tx.reservation.update({ where: { id: reservation.id }, data: { checkIn: operationalCheckIn } });
+      }
+      await tx.reservationEvent.create({
+        data: {
+          reservationId: reservation.id,
+          type: eventType,
+          actorId: access.actorId,
+          data: {
+            resolution: parsed.data.resolution,
+            reason,
+            scheduledArrival: oldCheckIn.toISOString(),
+            operationalArrival: operationalCheckIn.toISOString(),
+            actualCheckedInAt: actualArrival.toISOString(),
+            financialReviewRequired: true,
+            pricingChanged: false,
+          },
+        },
+      });
+      return { ok: true };
+    }, EXTENDED_TX_OPTIONS);
+
+    if ("conflict" in result && result.conflict) {
+      return res.status(409).json({ error: "The earlier arrival conflicts with another stay in the assigned room", code: "ROOM_CONFLICT", conflict: result.conflict });
+    }
+    if ("capacityConflict" in result && result.capacityConflict) {
+      return res.status(409).json({ error: "There is insufficient room availability for the earlier arrival", code: "ROOM_TYPE_CAPACITY_CONFLICT", conflict: result.capacityConflict });
+    }
+    const updated = await prisma.reservation.findUnique({ where: { id: reservation.id }, include: detailInclude });
+    res.json({
+      reservation: formatReservation(updated),
+      financialReviewRequired: true,
+      message: parsed.data.resolution === "CORRECT_ARRIVAL_DATE"
+        ? "Arrival date corrected. Review the folio because pricing was not changed automatically."
+        : "Early check-in approved. The scheduled arrival and pricing were preserved for audit; review the folio if an additional night should be charged.",
+    });
+  } catch (err) {
+    if (err instanceof Error && err.message === "NRMS_EARLY_CHECKIN_STALE") {
+      return res.status(409).json({ error: "The reservation changed before this correction was saved. Refresh and review it again.", code: "EARLY_CHECKIN_STALE" });
+    }
+    if (err instanceof Error && err.message === "NRMS_EARLY_CHECKIN_ALREADY_RESOLVED") {
+      return res.status(409).json({ error: "This early check-in has already been approved", code: "EARLY_CHECKIN_ALREADY_RESOLVED" });
+    }
+    if (rejectLockedBusinessDay(res, err)) return;
+    console.error("[owner.nrms.reservations] early check-in resolution failed", err);
+    res.status(500).json({ error: "Failed to resolve the early check-in" });
   }
 }) as RequestHandler);
 
