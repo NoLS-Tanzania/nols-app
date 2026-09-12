@@ -102,7 +102,7 @@ type AttentionItem = {
   room: string;
   checkOut: string;
   source: string;
-  issues: Array<{ code: "ROOM" | "OVERDUE" | "BALANCE"; label: string }>;
+  issues: Array<{ code: "ROOM" | "OVERDUE" | "EARLY_CHECKIN" | "BALANCE"; label: string }>;
 };
 
 const SOURCE_LABELS: Record<string, string> = {
@@ -203,13 +203,24 @@ function NrmsFrontDeskPage() {
       from.setDate(from.getDate() - 14);
       const to = new Date();
       to.setDate(to.getDate() + 2);
-      const [reservationResponse, roomsResponse] = await Promise.all([
+      const [reservationResponse, inHouseResponse, roomsResponse] = await Promise.all([
         apiClient.get<any>(`/api/owner/nrms/reservations/property/${selectedPropertyId}`, {
           params: { from: from.toISOString(), to: to.toISOString(), limit: 200 },
         }),
+        // In-house is an operational state, not a date-window report. Always
+        // load every checked-in stay so an old or future-dated anomaly cannot
+        // disappear from the front desk counters and attention queue.
+        apiClient.get<any>(`/api/owner/nrms/reservations/property/${selectedPropertyId}`, {
+          params: { status: "CHECKED_IN", limit: 200 },
+        }),
         apiClient.get<any>(`/api/owner/nrms/rooms/${selectedPropertyId}`),
       ]);
-      setReservations(reservationResponse.data?.reservations ?? []);
+      const merged = new Map<number, Reservation>();
+      for (const reservation of [
+        ...(reservationResponse.data?.reservations ?? []),
+        ...(inHouseResponse.data?.reservations ?? []),
+      ]) merged.set(reservation.id, reservation);
+      setReservations([...merged.values()]);
       setRoomTotals(roomsResponse.data?.totals ?? null);
       setRoomTypes(roomsResponse.data?.roomTypes ?? []);
     } catch (e: any) {
@@ -228,11 +239,18 @@ function NrmsFrontDeskPage() {
     () => reservations.filter((r) => r.status === "CONFIRMED" && sameDay(new Date(r.checkIn), today)),
     [reservations, today],
   );
-  const departures = useMemo(
-    () => reservations.filter((r) => r.status === "CHECKED_IN" && new Date(r.checkOut).getTime() <= new Date(today.getFullYear(), today.getMonth(), today.getDate() + 1).getTime()),
-    [reservations, today],
+  const checkedInRecords = useMemo(() => reservations.filter((r) => r.status === "CHECKED_IN"), [reservations]);
+  // A future arrival carrying CHECKED_IN is corrupt operational state, not a
+  // guest occupying a room tonight. Keep it visible to Attention below, but do
+  // not let it inflate the in-house or occupancy figures.
+  const inHouse = useMemo(
+    () => checkedInRecords.filter((r) => r.checkIn.slice(0, 10) <= localDateKey(today)),
+    [checkedInRecords, today],
   );
-  const inHouse = useMemo(() => reservations.filter((r) => r.status === "CHECKED_IN"), [reservations]);
+  const departures = useMemo(
+    () => inHouse.filter((r) => new Date(r.checkOut).getTime() <= new Date(today.getFullYear(), today.getMonth(), today.getDate() + 1).getTime()),
+    [inHouse, today],
+  );
   const totalRooms = roomTotals?.sellableUnits ?? roomTotals?.roomUnits ?? 0;
   const stayingRooms = Math.min(totalRooms, Math.max(0, inHouse.length - departures.length));
   const turnoverRooms = Math.min(departures.length, Math.max(0, totalRooms - stayingRooms));
@@ -244,12 +262,15 @@ function NrmsFrontDeskPage() {
   const attentionItems = useMemo(() => {
     const startOfToday = new Date(today.getFullYear(), today.getMonth(), today.getDate()).getTime();
     const active = new Map<number, Reservation>();
-    [...arrivals, ...inHouse].forEach((reservation) => active.set(reservation.id, reservation));
+    [...arrivals, ...checkedInRecords].forEach((reservation) => active.set(reservation.id, reservation));
 
     return [...active.values()].flatMap<AttentionItem>((reservation) => {
       const guest = reservation.guestProfile?.fullName ?? "Guest";
       const issues: AttentionItem["issues"] = [];
       if (!hasAssignedRoom(reservation)) issues.push({ code: "ROOM", label: "Room assignment required" });
+      if (reservation.status === "CHECKED_IN" && reservation.checkIn.slice(0, 10) > localDateKey(today)) {
+        issues.push({ code: "EARLY_CHECKIN", label: `Checked in before ${shortDate(reservation.checkIn)} arrival` });
+      }
       if (new Date(reservation.checkOut).getTime() < startOfToday && reservation.status === "CHECKED_IN") {
         const overdueDays = Math.max(1, Math.floor((startOfToday - new Date(reservation.checkOut).getTime()) / 86_400_000));
         issues.push({ code: "OVERDUE", label: `${overdueDays} ${overdueDays === 1 ? "day" : "days"} past check-out` });
@@ -257,7 +278,7 @@ function NrmsFrontDeskPage() {
       if (hasOutstandingBalance(reservation)) issues.push({ code: "BALANCE", label: `${reservation.currency} ${reservation.balance!.toLocaleString()} outstanding` });
       return issues.length > 0 ? [{ id: reservation.id, guest, room: roomsLabel(reservation), checkOut: reservation.checkOut, source: sourceLabel(reservation.source), issues }] : [];
     });
-  }, [arrivals, inHouse, today]);
+  }, [arrivals, checkedInRecords, today]);
 
   const act = async (
     id: number,
@@ -1205,6 +1226,7 @@ function OperationRow({
 function AttentionPanel({ items }: { items: AttentionItem[] }) {
   const [collapsed, setCollapsed] = useState(false);
   const overdueCount = items.filter((item) => item.issues.some((issue) => issue.code === "OVERDUE")).length;
+  const earlyCheckInCount = items.filter((item) => item.issues.some((issue) => issue.code === "EARLY_CHECKIN")).length;
   const balanceCount = items.filter((item) => item.issues.some((issue) => issue.code === "BALANCE")).length;
   const roomCount = items.filter((item) => item.issues.some((issue) => issue.code === "ROOM")).length;
 
@@ -1227,6 +1249,7 @@ function AttentionPanel({ items }: { items: AttentionItem[] }) {
         </div>
         <div className="flex flex-wrap items-center justify-end gap-1.5">
           {overdueCount > 0 && <span className="inline-flex items-center gap-1.5 rounded-full border border-red-200 bg-red-50 px-2.5 py-1 text-[10px] font-bold text-red-700"><span className="h-1.5 w-1.5 rounded-full bg-red-500" aria-hidden="true" />{overdueCount} overdue</span>}
+          {earlyCheckInCount > 0 && <span className="inline-flex items-center gap-1.5 rounded-full border border-red-200 bg-red-50 px-2.5 py-1 text-[10px] font-bold text-red-700"><span className="h-1.5 w-1.5 rounded-full bg-red-500" aria-hidden="true" />{earlyCheckInCount} early check-in</span>}
           {balanceCount > 0 && <span className="inline-flex items-center gap-1.5 rounded-full border border-amber-200 bg-amber-50 px-2.5 py-1 text-[10px] font-bold text-amber-800"><span className="h-1.5 w-1.5 rounded-full bg-amber-500" aria-hidden="true" />{balanceCount} balance</span>}
           {roomCount > 0 && <span className="inline-flex items-center gap-1.5 rounded-full border border-violet-200 bg-violet-50 px-2.5 py-1 text-[10px] font-bold text-violet-700"><span className="h-1.5 w-1.5 rounded-full bg-violet-500" aria-hidden="true" />{roomCount} room</span>}
           <div className="ml-1 min-w-24 rounded-xl border border-white/80 bg-white/80 px-3.5 py-2 text-right shadow-sm backdrop-blur-sm">
@@ -1257,16 +1280,16 @@ function AttentionPanel({ items }: { items: AttentionItem[] }) {
             {items.map((item) => (
           <li
             key={item.id}
-            className={`m-0 list-none border-l-[3px] px-5 py-2 transition-colors ${item.issues.some((issue) => issue.code === "OVERDUE") ? "border-l-red-400 bg-red-50/35 hover:bg-red-50/65" : item.issues.some((issue) => issue.code === "BALANCE") ? "border-l-amber-400 bg-amber-50/35 hover:bg-amber-50/65" : "border-l-violet-400 bg-violet-50/30 hover:bg-violet-50/60"}`}
+            className={`m-0 list-none border-l-[3px] px-5 py-2 transition-colors ${item.issues.some((issue) => issue.code === "OVERDUE" || issue.code === "EARLY_CHECKIN") ? "border-l-red-400 bg-red-50/35 hover:bg-red-50/65" : item.issues.some((issue) => issue.code === "BALANCE") ? "border-l-amber-400 bg-amber-50/35 hover:bg-amber-50/65" : "border-l-violet-400 bg-violet-50/30 hover:bg-violet-50/60"}`}
           >
             <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-start gap-x-3 gap-y-2 lg:grid-cols-[minmax(11rem,1.35fr)_minmax(7rem,0.8fr)_minmax(9rem,0.95fr)_minmax(9rem,1.1fr)_minmax(7rem,auto)] lg:items-center lg:gap-3">
               <div className="col-start-1 flex min-w-0 items-center gap-3 lg:col-auto">
-                <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-[10px] font-bold ring-1 ring-inset ${item.issues.some((issue) => issue.code === "OVERDUE") ? "bg-red-100/70 text-red-700 ring-red-200" : item.issues.some((issue) => issue.code === "BALANCE") ? "bg-amber-100/70 text-amber-800 ring-amber-200" : "bg-violet-100/70 text-violet-800 ring-violet-200"}`}>{initials(item.guest)}</span>
+                <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-[10px] font-bold ring-1 ring-inset ${item.issues.some((issue) => issue.code === "OVERDUE" || issue.code === "EARLY_CHECKIN") ? "bg-red-100/70 text-red-700 ring-red-200" : item.issues.some((issue) => issue.code === "BALANCE") ? "bg-amber-100/70 text-amber-800 ring-amber-200" : "bg-violet-100/70 text-violet-800 ring-violet-200"}`}>{initials(item.guest)}</span>
                 <p className="m-0 min-w-0 truncate text-sm font-bold text-neutral-950">{item.guest}</p>
               </div>
               <div className="col-start-1 min-w-0 pl-[3rem] lg:col-auto lg:p-0"><p className="m-0 truncate text-xs font-semibold text-neutral-700">{item.room}</p></div>
               <div className="col-start-1 min-w-0 pl-[3rem] lg:col-auto lg:p-0"><p className="m-0 truncate text-xs font-medium text-neutral-500">check-out {shortDate(item.checkOut)} · {item.source}</p></div>
-              <div className="col-start-1 min-w-0 pl-[3rem] lg:col-auto lg:p-0"><div className="flex flex-wrap gap-1.5">{item.issues.map((issue) => <span key={issue.code} className={`rounded-md border px-2 py-1 text-[10px] font-bold ${issue.code === "OVERDUE" ? "border-red-200 bg-red-50 text-red-700" : issue.code === "BALANCE" ? "border-amber-200 bg-amber-50 text-amber-800" : "border-violet-200 bg-violet-50 text-violet-700"}`}>{issue.label}</span>)}</div></div>
+              <div className="col-start-1 min-w-0 pl-[3rem] lg:col-auto lg:p-0"><div className="flex flex-wrap gap-1.5">{item.issues.map((issue) => <span key={issue.code} className={`rounded-md border px-2 py-1 text-[10px] font-bold ${issue.code === "OVERDUE" || issue.code === "EARLY_CHECKIN" ? "border-red-200 bg-red-50 text-red-700" : issue.code === "BALANCE" ? "border-amber-200 bg-amber-50 text-amber-800" : "border-violet-200 bg-violet-50 text-violet-700"}`}>{issue.label}</span>)}</div></div>
               <Link href={`/owner/nrms/reservations?reservationId=${item.id}`} className="col-start-2 row-start-1 inline-flex min-h-8 shrink-0 items-center justify-center gap-1.5 self-center rounded-lg border border-neutral-200 bg-white px-3 text-xs font-bold text-neutral-700 no-underline shadow-sm transition hover:border-neutral-300 hover:bg-neutral-100 hover:text-neutral-950 hover:no-underline lg:col-auto lg:row-auto lg:justify-self-end">Review <ArrowRight className="h-3.5 w-3.5" /></Link>
             </div>
           </li>

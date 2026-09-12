@@ -17,10 +17,11 @@ import { fiscaliseSettlement } from "../lib/nrmsFiscal.js";
 import { CHARGE_CATEGORIES, computeGuestBalance, computeOutstanding, getCheckoutSettlement } from "../lib/nrmsFolio.js";
 import { buildNrmsDocumentNumber, generateNrmsInvoicePdf, generateNrmsRandomCode } from "../lib/pdfDocuments.js";
 import { queueNrmsCheckInWelcome } from "../lib/nrmsCheckInWelcome.js";
+import { nrmsCheckInDateConflict } from "../lib/nrmsCheckInDate.js";
 import { resolveAllocationMealPlan } from "../lib/nrmsMealPlan.js";
 import { resolveAnalyticsMasterFolioStayDate, summarizeAnalyticsGuestFolio, summarizeAnalyticsMasterFolio } from "../lib/nrmsRevenueAnalytics.js";
 import { loadNrmsPropertyAccess } from "../lib/nrmsPropertyAccess.js";
-import { assertNrmsBusinessDayWritable, NRMS_BUSINESS_DAY_LOCKED } from "../lib/nrmsShifts.js";
+import { assertNrmsBusinessDayWritable, NRMS_BUSINESS_DAY_LOCKED, shiftDayKey } from "../lib/nrmsShifts.js";
 import { ASSIGNABLE_STATUSES, assignGroupRooms } from "../lib/nrmsRoomAssignment.js";
 import { emailAgentVoucher } from "../lib/nrmsAgentVoucher.js";
 import {
@@ -800,7 +801,7 @@ type GroupBlocker = { code: string; message: string };
 function inspectGroupMember(
   member: any,
   action: "CHECK_IN" | "CHECK_OUT",
-  options: { overrideRoomReadiness: boolean; verifyCharges: boolean },
+  options: { overrideRoomReadiness: boolean; verifyCharges: boolean; businessDate?: string },
 ) {
   const blockers: GroupBlocker[] = [];
   const requiredChargeIds: number[] = [];
@@ -808,6 +809,8 @@ function inspectGroupMember(
     if (member.status !== "CONFIRMED") {
       blockers.push({ code: "INVALID_TRANSITION", message: "Only confirmed reservations can be checked in." });
     }
+    const dateConflict = nrmsCheckInDateConflict(new Date(member.checkIn), options.businessDate ?? shiftDayKey(new Date()));
+    if (dateConflict) blockers.push({ code: dateConflict.code, message: dateConflict.message });
     if (!member.allocations?.length || member.allocations.some((allocation: any) => allocation.roomUnitId == null)) {
       blockers.push({ code: "ROOM_ASSIGNMENT_REQUIRED", message: "Assign a specific room before check-in." });
     }
@@ -1321,13 +1324,13 @@ function executeGroupAction(action: "CHECK_IN" | "CHECK_OUT") {
         try {
           const outcome = await prisma.$transaction(async (tx: any) => {
             await lockPropertyInventory(tx, group.propertyId);
-            const businessDate = action === "CHECK_OUT" ? await assertNrmsBusinessDayWritable(tx, group.propertyId) : null;
+            const businessDate = await assertNrmsBusinessDayWritable(tx, group.propertyId);
             const member = await tx.reservation.findFirst({
               where: { id: existing.id, groupId: group.id, propertyId: group.propertyId, ownerId, bookingId: null },
               include: groupMemberInclude,
             });
             if (!member) return { changed: false, blockers: [{ code: "MEMBER_NOT_FOUND", message: "Reservation is no longer in this group." }] };
-            const inspection = inspectGroupMember(member, action, parsed.data);
+            const inspection = inspectGroupMember(member, action, { ...parsed.data, businessDate });
             if (!inspection.eligible) return { changed: false, blockers: inspection.blockers };
             if (action === "CHECK_IN") {
               const changed = await tx.reservation.updateMany({
@@ -1342,7 +1345,7 @@ function executeGroupAction(action: "CHECK_IN" | "CHECK_OUT") {
               return { changed: true };
             }
             const billing = await finalizeNrmsCheckout(tx, member, ownerId, inspection.requiredChargeIds, {
-              businessDate: businessDate!,
+              businessDate,
               actorId,
               roomVacantConfirmed: parsed.data.roomVacantConfirmed,
               earlyDepartureReason: parsed.data.earlyDepartureReason,
@@ -2141,7 +2144,7 @@ function transition(
   eventType: string,
   allowedFrom: string[],
   buildData: (reason: string | null) => Record<string, unknown>,
-  opts?: { releaseAllocations?: boolean; requireAssignedRooms?: boolean; requireRoomsReady?: boolean; voidMasterRoom?: boolean },
+  opts?: { releaseAllocations?: boolean; requireAssignedRooms?: boolean; requireRoomsReady?: boolean; requireArrivalStarted?: boolean; voidMasterRoom?: boolean },
 ) {
   return (async (req: AuthedRequest, res: Response) => {
     try {
@@ -2222,6 +2225,11 @@ function transition(
 
       await prisma.$transaction(async (tx: any) => {
         await lockPropertyInventory(tx, reservation.propertyId);
+        if (opts?.requireArrivalStarted) {
+          const businessDate = await assertNrmsBusinessDayWritable(tx, reservation.propertyId);
+          const conflict = nrmsCheckInDateConflict(new Date(reservation.checkIn), businessDate);
+          if (conflict) throw new Error(`NRMS_CHECKIN_BEFORE_ARRIVAL:${conflict.arrivalDate}:${conflict.businessDate}`);
+        }
         if (opts?.requireAssignedRooms) {
           const activeAllocations = await tx.reservationRoomAllocation.findMany({
             where: { reservationId: reservation.id, status: "ACTIVE" },
@@ -2278,6 +2286,16 @@ function transition(
       const updated = await prisma.reservation.findUnique({ where: { id: reservation.id }, include: detailInclude });
       res.json({ reservation: formatReservation(updated) });
     } catch (err) {
+      if (err instanceof Error && err.message.startsWith("NRMS_CHECKIN_BEFORE_ARRIVAL:")) {
+        const [, arrivalDate, businessDate] = err.message.split(":");
+        return res.status(409).json({
+          error: `Check-in opens on the arrival business date, ${arrivalDate}.`,
+          code: "CHECKIN_BEFORE_ARRIVAL",
+          arrivalDate,
+          businessDate,
+        });
+      }
+      if (rejectLockedBusinessDay(res, err)) return;
       if (err instanceof Error && err.message === "NRMS_ROOM_ASSIGNMENT_REQUIRED") {
         return res.status(409).json({
           error: "Assign a specific room to every active allocation before check-in",
@@ -2334,7 +2352,7 @@ router.post("/:id/confirm", (async (req: AuthedRequest, res: Response) => {
 /** POST /:id/check-in - CONFIRMED -> CHECKED_IN (owner-authorized, doc 7.4) */
 router.post(
   "/:id/check-in",
-  transition("CHECKED_IN", ["CONFIRMED"], () => ({ status: "CHECKED_IN", checkedInAt: new Date() }), { requireAssignedRooms: true, requireRoomsReady: true }),
+  transition("CHECKED_IN", ["CONFIRMED"], () => ({ status: "CHECKED_IN", checkedInAt: new Date() }), { requireAssignedRooms: true, requireRoomsReady: true, requireArrivalStarted: true }),
 );
 
 /**
